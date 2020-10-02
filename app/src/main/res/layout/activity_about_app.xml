@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#fff"
+    tools:context=".AboutAppActivity">
+
+    <androidx.appcompat.widget.Toolbar
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/id_Toolbartrash"
+        android:background="@color/colorApp"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light"/>
+
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:background="@drawable/cardview_bg"
+        android:layout_margin="5dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <ImageView
+            android:id="@+id/headerappicon"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_marginTop="20dp"
+            android:padding="20dp"
+            android:layout_gravity="center_horizontal"
+            android:background="@drawable/round"
+            android:src="@drawable/ic_quran" />
+
+        <TextView
+            android:layout_margin="5dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/martel_regular"
+            android:layout_gravity="center"
+            android:textAlignment="center"
+            android:autoLink="web"
+            android:textColor="@color/colorApp"
+            android:text="
+उस्मान रदी अल्लाहु अन्हु ने बयान किया है कि रसूलुल्लाह सल्लल्लाहु अलैहि वसल्लम ने कहा
+है कि तुम में से सबसे अच्छा वही है जिसने कुरान मजीद पढ़ा और पढ़ाया है"
+            android:textSize="18dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+
+            android:fontFamily="@font/martel_regular"
+            android:layout_marginLeft="8dp"
+            android:textColor="#000"
+            android:layout_margin="10dp"
+            android:layout_gravity="center"
+            android:text="Sahih Bukhari, Vol 6 , 5028"
+            android:textSize="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+
+            android:fontFamily="@font/martel_regular"
+            android:textColor="#000"
+            android:layout_margin="8dp"
+            android:text="कुरआन आपल्या मातृभाषेत"
+            android:layout_gravity="center"
+            android:textSize="18dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/martel_regular"
+            android:layout_gravity="center"
+            android:textAlignment="center"
+            android:layout_marginTop="2dp"
+            android:layout_marginLeft="8dp"
+            android:layout_marginRight="8dp"
+            android:textColor="#000"
+            android:text="मराठी भाषेतील खास कुरआनुल-हकीमचा अनुवाद."
+            android:textSize="18dp" />
+
+    </LinearLayout>
+<!--
+    <ImageView
+        android:id="@+id/headerappicon"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:layout_marginTop="20dp"
+        android:padding="20dp"
+        android:layout_gravity="center"
+        android:background="@drawable/round"
+        android:src="@drawable/ic_quran" />-->
+
+
+
+
+
+
+
+
+
+
+
+</LinearLayout>

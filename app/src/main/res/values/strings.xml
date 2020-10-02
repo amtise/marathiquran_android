@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">मराठी कुरआन (ईशवाणी)</string>
+    <string name="navigation_drawer_open" translatable="false">Open navigation drawer</string>
+    <string name="navigation_drawer_close" translatable="false">Close navigation drawer</string>
+    <string name="rateus_name" translatable="false">Rate Us</string>
+    <string name="share_name" translatable="false">Share</string>
+    <string name="aboutapp_name" translatable="false">About App</string>
+
+    <string name="update_caberz">Update Marathi Quran ?</string>
+    <string name="caberz_recommends_that_you_update_to_the_latest_version">Marathi Quran recommends that you update to the latest version</string>
+    <string name="update">Update</string>
+</resources>
