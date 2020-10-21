@@ -30,6 +30,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
@@ -54,6 +55,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -97,7 +99,7 @@ import java.util.concurrent.TimeUnit;
 /////  android:fontFamily="@font/me_quran"
 
 
-public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
+public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener , AudioManager.OnAudioFocusChangeListener {
     Toolbar toolbar;
     ActionBarDrawerToggle toggle;
     Spinner surat_spinner, ayat_spinner,audio_spinner;
@@ -132,6 +134,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     ImageView iv_download;
 
      int list_i ;
+
+    PreferenceUtils pref;
+
+    int default_surat_id = 1;
+    int default_surat_num = 1;
+    String ayat_changes = "non";
+
+    private AudioManager mAudioManager;
+    int  media_length;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -178,6 +189,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             StrictMode.setThreadPolicy(policy);
         }
 
+
+
         if (Utils.isNetworkAvailable(MainActivity.this)) {
         }else {
             Toast.makeText(MainActivity.this, "Please connect to an internet", Toast.LENGTH_SHORT).show();
@@ -189,6 +202,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ll_hideshow = findViewById(R.id.ll_hideshow);
         iv_download = findViewById(R.id.iv_download);
         activity  =this;
+
+        pref = new PreferenceUtils(this);
 
         listView.setHasFixedSize(true);
         listView.setLayoutManager(new LinearLayoutManager(MainActivity.this, LinearLayoutManager.VERTICAL, false));
@@ -229,32 +244,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         dataAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         audio_spinner.setAdapter(dataAdapter);
 
-      /*  ///////////// incoming calling
-        PhoneStateListener phoneStateListener = new PhoneStateListener() {
-            @Override
-            public void onCallStateChanged(int state, String incomingNumber) {
-                if (state == TelephonyManager.CALL_STATE_RINGING) {
-
-                    audioItemAdapter.pausePlayer();
-
-                } else if(state == TelephonyManager.CALL_STATE_IDLE) {
-
-                } else if(state == TelephonyManager.CALL_STATE_OFFHOOK) {
-
-                    audioItemAdapter.pausePlayer();
-
-                }
-                super.onCallStateChanged(state, incomingNumber);
-            }
-        };//end PhoneStateListener
-
-        TelephonyManager mgr = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
-        if(mgr != null) {
-            mgr.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE);
-        }
-
-        ///////////// incoming calling
-*/
         audio_spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
@@ -287,69 +276,103 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         ayatList = new ArrayList<>();
         ayatList.clear();
-        ayatList= dbHelper.getAllAyats(1);
+        ayatList= dbHelper.getAllAyats(pref.geteuratid());
 
         ArrayAdapter<Surat> adapter = new ArrayAdapter<>(getApplicationContext(), android.R.layout.simple_spinner_dropdown_item, suratList);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         surat_spinner.setAdapter(adapter);
 
-        vachanList = dbHelper.getAllVachan(1,surat_number);
+        vachanList = dbHelper.getAllVachan(pref.getsurantnum(),pref.getsurantnum());
 
-        //creating the adapter object
+       // audioItemAdapter = new AudioItemAdapter(MainActivity.this ,  vachanList);
+       // listView.setAdapter(audioItemAdapter);
 
-        //  vachanAdapter = new CustomAyatyList(this, R.layout.list_row,vachanList);,
-        //  listView.setAdapter(vachanAdapter);
+        surat_spinner.setSelection(pref.getsurepos());
+        listView.scrollToPosition(pref.getayatpos());
 
-        //  adapter_ayats = new Adapter_Ayats(MainActivity.this, vachanList);
-        //    listView.setAdapter(adapter_ayats);
+        ArrayAdapter<Ayat> adapter2 = new ArrayAdapter<>(getApplicationContext(), android.R.layout.simple_spinner_dropdown_item, ayatList);
+        adapter2.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        ayat_spinner.setAdapter(adapter2);
 
-        audioItemAdapter = new AudioItemAdapter(MainActivity.this ,  vachanList);
+        vachanList = dbHelper.getAllVachan(pref.geteuratid(),pref.getsurantnum());
+
+        audioItemAdapter = new AudioItemAdapter(MainActivity.this , vachanList);
         listView.setAdapter(audioItemAdapter);
 
-        surat_spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+        surat_spinner.post(new Runnable() {
+            @Override public void run() {
 
-                audioItemAdapter.stopPlayer();
-                listView.scrollToPosition(0);
+                surat_spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
 
-                surat_id = suratList.get(i).getId();
-                surat_number = suratList.get(i).getSurat_number();
-                fileName = suratList.get(i).getFull_audio_file();
+                        audioItemAdapter.stopPlayer();
+                        listView.scrollToPosition(0);
 
-                ayatList.clear();
-                ayatList= dbHelper.getAllAyats(surat_id);
+                        pref.setsurepos(i);
+                        pref.seteuratid(suratList.get(i).getId());
+                        pref.setsurantnum(suratList.get(i).getSurat_number());
+                        pref.setayatpos(0);
 
-                ArrayAdapter<Ayat> adapter2 = new ArrayAdapter<>(getApplicationContext(), android.R.layout.simple_spinner_dropdown_item, ayatList);
-                adapter2.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-                ayat_spinner.setAdapter(adapter2);
+                        surat_id = suratList.get(i).getId();
+                        surat_number = suratList.get(i).getSurat_number();
 
-                vachanList = dbHelper.getAllVachan(surat_id,surat_number);
+                        ayatList.clear();
+                        ayatList= dbHelper.getAllAyats(surat_id);
 
-                //creating the adapter object
-               /* vachanAdapter = new CustomAyatyList(MainActivity.this, R.layout.list_row, vachanList);
-                listView.setAdapter(vachanAdapter);*/
+                        ArrayAdapter<Ayat> adapter2 = new ArrayAdapter<>(getApplicationContext(), android.R.layout.simple_spinner_dropdown_item, ayatList);
+                        adapter2.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                        ayat_spinner.setAdapter(adapter2);
 
-                //  adapter_ayats = new Adapter_Ayats(MainActivity.this, vachanList);
-                // listView.setAdapter(adapter_ayats);
+                        vachanList = dbHelper.getAllVachan(surat_id , surat_number);
 
-                audioItemAdapter = new AudioItemAdapter(MainActivity.this , vachanList);
-                listView.setAdapter(audioItemAdapter);
+                        audioItemAdapter = new AudioItemAdapter(MainActivity.this , vachanList);
+                        listView.setAdapter(audioItemAdapter);
 
-            }
+                    }
 
-            @Override
-            public void onNothingSelected(AdapterView<?> adapterView) {
+                    @Override
+                    public void onNothingSelected(AdapterView<?> adapterView) {
+                    }
+
+                });
 
             }
         });
 
-        ayat_spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+        if(pref.getayatpos() > vachanList.size()){
+            ayat_spinner.setSelection(0);
+        }else {
+            ayat_spinner.setSelection(pref.getayatpos());
+        }
+
+        ayat_spinner.post(new Runnable() {
+            @Override public void run() {
+                ayat_spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+
+                        if(ayat_changes.equals("non")){
+                            audioItemAdapter.stopPlayer();
+                            listView.scrollToPosition(i);
+                        }else {
+                            listView.scrollToPosition(i);
+                        }
+
+                    }
+
+                    @Override
+                    public void onNothingSelected(AdapterView<?> adapterView) {
+
+                    }
+                });
+            }
+        });
+
+     /*   ayat_spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
 
-                // listView.setSmoothScrollbarEnabled(true);
-                // listView.smoothScrollToPositionFromTop(i,0);
                 audioItemAdapter.stopPlayer();
                 listView.scrollToPosition(i);
 
@@ -359,7 +382,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             public void onNothingSelected(AdapterView<?> adapterView) {
 
             }
-        });
+        });*/
+
+
 
 //        //direcotry code
 //        checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, STORAGE_PERMISSION_CODE);
@@ -371,6 +396,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
 
         //code for navigation drawer
+
         setSupportActionBar(toolbar);
         //getSupportActionBar(toolbar);
         // toolbar.setNavigationIcon(R.drawable.ic_humburger3);
@@ -384,8 +410,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
 
-
-
         iv_download.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -394,7 +418,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     public void run() {
                         if(!((Activity) MainActivity.this).isFinishing()) {
 
-                            Utils.showProgress1("Downloading... \n please wait" , MainActivity.this);
+                            Utils.showProgress1("please wait Downloading..." , MainActivity.this);
                             Toast.makeText(MainActivity.this, "Downloading started in background", Toast.LENGTH_SHORT).show();
 
                         }
@@ -405,29 +429,30 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     @Override
                     public void run() {
 
-                        String SDCardRoot = Environment.getExternalStorageDirectory().toString();
+                     ////   String SDCardRoot = Environment.getExternalStorageDirectory().toString();
+
+                        String SDCardRoot = MainActivity.this.getExternalCacheDir().toString();
 
                         for(list_i = 0 ; list_i <=vachanList.size()-1 ; list_i++){
 
                             if(list_i <= vachanList.size()){
 
                                 if (audioType.equals("marathi")) {
-
                                     url = "https://marathiquran.com/media/" + vachanList.get(list_i).getMarathi_audio().replace(" ", "%20");
-                                    downloadFile(url, vachanList.get(list_i).getSurat_number() + "." + vachanList.get(list_i).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/marathi");
+                                    downloadFile(url, vachanList.get(list_i).getSurat_number() + "." + vachanList.get(list_i).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/marathi" , SDCardRoot + "/MarathiQuran");
 
                                 } else if (audioType.equals("arabic")) {
 
                                     url = "https://marathiquran.com/media/" + vachanList.get(list_i).getArabic_audio().replace(" ", "%20");
-                                    downloadFile(url, vachanList.get(list_i).getSurat_number() + "." + vachanList.get(list_i).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/arabic");
+                                    downloadFile(url, vachanList.get(list_i).getSurat_number() + "." + vachanList.get(list_i).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/arabic" , SDCardRoot + "/MarathiQuran");
 
                                 } else {
 
                                     url = "https://marathiquran.com/media/" + vachanList.get(list_i).getMarathi_audio().replace(" ", "%20");
-                                    downloadFile(url, vachanList.get(list_i).getSurat_number() + "." + vachanList.get(list_i).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/marathi");
+                                    downloadFile(url, vachanList.get(list_i).getSurat_number() + "." + vachanList.get(list_i).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/marathi" , SDCardRoot + "/MarathiQuran");
 
                                     ur2 = "https://marathiquran.com/media/" + vachanList.get(list_i).getArabic_audio().replace(" ", "%20");
-                                    downloadFile(ur2, vachanList.get(list_i).getSurat_number() + "." + vachanList.get(list_i).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/arabic");
+                                    downloadFile(ur2, vachanList.get(list_i).getSurat_number() + "." + vachanList.get(list_i).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/arabic" , SDCardRoot + "/MarathiQuran");
 
                                 }
 
@@ -445,16 +470,24 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 });
                 t.start();
 
-               /* runOnUiThread(new Runnable() {
-                    public void run() {
-                        if(list_i >= vachanList.size()) {
-                            Utils.hideProgress1();
-                        }
-                    }
-                });*/
-
             }
         });
+
+        mAudioManager = (AudioManager)this.getSystemService(Context.AUDIO_SERVICE);
+        int result = mAudioManager.requestAudioFocus(this, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+
+        if(result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            // Play
+            Log.e("TAG" , "TEST_CALL====" + 1);
+        }else {
+            Log.e("TAG" , "TEST_CALL====" + 0);
+        }
+
+        if(mAudioManager.isMusicActive()) {
+            Log.e("TAG" , "TEST_CALL====" + 11);
+        }else {
+            Log.e("TAG" , "TEST_CALL====" + 00);
+        }
 
     }
 
@@ -673,6 +706,65 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         Log.v("log_tag", "Check: ");
     }
 
+    @Override
+    public void onAudioFocusChange(int focusChange) {
+
+        if(mAudioManager.isMusicActive()) {
+            Log.e("TAG" , "TEST_CALL====" + 111);
+            audioItemAdapter.stopPlayer();
+            //audioItemAdapter.pausePlayer();
+        }else {
+            Log.e("TAG" , "TEST_CALL====" + 000);
+        }
+
+        if(focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+            // Pause
+            Log.e("TAG" , "TEST_CALL====" + 2);
+            audioItemAdapter.pausePlayer();
+        }
+        else if(focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+            // Resume
+            Log.e("TAG" , "TEST_CALL====" + 3);
+            audioItemAdapter.resumePlayer();
+        } else if(focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+            // Stop or pause depending on your need
+            Log.e("TAG" , "TEST_CALL====" + 4);
+        }
+
+        PhoneStateListener phoneStateListener = new PhoneStateListener() {
+            @Override
+            public void onCallStateChanged(int state, String incomingNumber) {
+
+                if (state == TelephonyManager.CALL_STATE_RINGING) {
+
+                    audioItemAdapter.pausePlayer();
+                    audioItemAdapter.updatePlayingView();
+
+                } else if(state == TelephonyManager.CALL_STATE_IDLE) {
+
+                    audioItemAdapter.resumePlayer();
+                    audioItemAdapter.updatePlayingView();
+
+                } else if(state == TelephonyManager.CALL_STATE_OFFHOOK) {
+
+                    audioItemAdapter.pausePlayer();
+                    audioItemAdapter.updatePlayingView();
+
+                }
+
+                super.onCallStateChanged(state, incomingNumber);
+            }
+        };
+
+        TelephonyManager mgr = (TelephonyManager) getSystemService(TELEPHONY_SERVICE);
+        if(mgr != null) {
+            mgr.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE);
+        }
+
+
+    }
+
+
     //////////////////////////////// Adapter //////////////////////
 
     public class AudioItemAdapter extends RecyclerView.Adapter<AudioItemAdapter.AudioItemsViewHolder> implements Handler.Callback {
@@ -683,6 +775,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         private List<Vachan> audioItems;
         private int playingPosition;
         private AudioItemsViewHolder playingHolder;
+        boolean flag = false;
 
         Context context;
         public int currentlyPlaying;
@@ -704,6 +797,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         @Override
         public void onBindViewHolder(AudioItemsViewHolder holder, final int position) {
 
+            Log.e("TAG" , "TEST_POS===" + position);
+            pref.setayatpos(position);
+
             if(position == 0){
                holder.vachan_version.setVisibility(View.GONE);
             }else {
@@ -716,7 +812,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 holder.vachan_version.setText(vachanList.get(position).getSurat_number() + ":" + vachanList.get(position).getAyat_number());
             }
 
-            String arabic = vachanList.get(position).getArabic_text().toString().replaceAll("\\s+", "");
+           //// String arabic = vachanList.get(position).getArabic_text().toString().replaceAll("\\s+", "");
+            String arabic = vachanList.get(position).getArabic_text();
             holder.arabic_text.setText(arabic);
             //  String marathi = vachanList.get(position).getMarathi_text().toString().replaceAll("\\s+", "");
             holder.marathi_text.setText(vachanList.get(position).getMarathi_text());
@@ -755,8 +852,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         }
 
+
         @Override
-        public int getItemCount() {
+        public int getItemCount(){
             return audioItems.size();
         }
 
@@ -798,15 +896,20 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     playingHolder.cardView.setCardElevation((float) 15.0);
 
                     if (mediaPlayer.isPlaying()) {
+
                         playingHolder.ll_time.setVisibility(View.VISIBLE);
                         uiUpdateHandler.sendEmptyMessageDelayed(MSG_UPDATE_SEEK_BAR, 100);
                         playingHolder.ivPlayPause.setImageResource(R.drawable.ic_pause);
 
                     } else {
+
                         uiUpdateHandler.removeMessages(MSG_UPDATE_SEEK_BAR);
                         playingHolder.ivPlayPause.setImageResource(R.drawable.ic_play);
+
                     }
+
                     playingHolder.txt_end.setText(String.valueOf(milliSecondsToTimer((long) mediaPlayer.getDuration())));
+
                 }
 
             }
@@ -823,8 +926,19 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         void pausePlayer() {
             if (null != mediaPlayer) {
                 mediaPlayer.pause();
+                media_length = mediaPlayer.getCurrentPosition();
+                updatePlayingView();
             }
         }
+
+        void resumePlayer() {
+            if (null != mediaPlayer) {
+                mediaPlayer.seekTo(media_length);
+                mediaPlayer.start();
+                updatePlayingView();
+            }
+        }
+
 
         @Override
         public boolean handleMessage(Message msg) {
@@ -839,10 +953,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             return false;
         }
 
-        class AudioItemsViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener, SeekBar.OnSeekBarChangeListener {
+        class AudioItemsViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener, SeekBar.OnSeekBarChangeListener{
+
             SeekBar sbProgress;
             ImageView ivPlayPause, ic_share ;
-            //TextView tvIndex;
             TextView vachan_version, marathi_text, arabic_text , txt_start,txt_end;;
             CardView cardView;
             ProgressBar progressBar;
@@ -873,8 +987,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
                 if (getAdapterPosition() == playingPosition) {
 
-                    // toggle between play/pause of audio
-
                     if (null != mediaPlayer) {
                         if (mediaPlayer.isPlaying()) {
                             mediaPlayer.pause();
@@ -885,16 +997,18 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     }
 
                 } else {
+
                     playingPosition = getAdapterPosition();
                     currentlyPlaying = getAdapterPosition();
+
                     if (mediaPlayer != null) {
                         if (null != playingHolder) {
                             updateNonPlayingView(playingHolder);
                         }
                         mediaPlayer.release();
                     }
-                    playingHolder = this;
 
+                    playingHolder = this;
                     startMediaPlayer(playingPosition);
 
                 }
@@ -907,7 +1021,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser) {
                     mediaPlayer.seekTo(progress);
-
                 }
 
             }
@@ -921,9 +1034,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             public void onStopTrackingTouch(SeekBar seekBar) {
 
             }
+
+
+
+
         }
 
         private void startMediaPlayer(final int current_item) {
+
+            pref.setayatpos(playingPosition);
 
             if (audioType.equals("marathi")) {
                 url = "https://marathiquran.com/media/" + audioItems.get(current_item).getMarathi_audio().replace(" ", "%20");
@@ -934,13 +1053,16 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 url = "https://marathiquran.com/media/" + audioItems.get(current_item).getArabic_audio().replace(" ", "%20");
             }
 
+
             if (audioType.equals("arabicmarathi")){
 
                 if (trigger.equals("0")) {
 
                     mediaPlayer = new MediaPlayer();
 
-                    String SDCardRoot2 = Environment.getExternalStorageDirectory().toString();
+                   // String SDCardRoot2 = Environment.getExternalStorageDirectory().toString();
+
+                    String SDCardRoot2 = context.getExternalCacheDir().toString();
                     String filepath = audioItems.get(current_item).getSurat_number() + "." + audioItems.get(current_item).getAyat_number() + ".mp3";
                     String audioFilePath = SDCardRoot2 + "/MarathiQuran/arabic/"+filepath;
                     File mp3_file = new File(audioFilePath);
@@ -1002,6 +1124,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                             trigger = "1";
                                             startMediaPlayer(playingPosition);
                                             listView.scrollToPosition(playingPosition);
+                                            ayat_changes  = "change";
+                                            ayat_spinner.setSelection(playingPosition);
                                             updatePlayingView();
                                             notifyDataSetChanged();
 
@@ -1027,7 +1151,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
                             activity.runOnUiThread(new Runnable() {
                                 public void run() {
-                                    Utils.showProgress1("Please wait..." , context);
+                                    if (flag == false) {
+                                        Utils.showProgress1("Please wait...", context);
+                                    }
                                 }
                             });
 
@@ -1036,8 +1162,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                 @Override
                                 public void run() {
 
-                                    String SDCardRoot = Environment.getExternalStorageDirectory().toString();
-                                    downloadFile(url, audioItems.get(current_item).getSurat_number() + "." + audioItems.get(current_item).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/arabic");
+                                   // String SDCardRoot = Environment.getExternalStorageDirectory().toString();
+                                    String SDCardRoot = context.getExternalCacheDir().toString();
+                                    downloadFile(url, audioItems.get(current_item).getSurat_number() + "." + audioItems.get(current_item).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/arabic" , SDCardRoot + "/MarathiQuran/marathi");
                                 }
                             });
                             t.start();
@@ -1106,6 +1233,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                                 trigger = "1";
                                                 startMediaPlayer(playingPosition);
                                                 listView.scrollToPosition(playingPosition);
+                                                ayat_changes  = "change";
+                                                ayat_spinner.setSelection(playingPosition);
                                                 updatePlayingView();
                                                 notifyDataSetChanged();
 
@@ -1147,7 +1276,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
                     mediaPlayer = new MediaPlayer();
 
-                    String SDCardRoot2 = Environment.getExternalStorageDirectory().toString();
+                  //  String SDCardRoot2 = Environment.getExternalStorageDirectory().toString();
+                    String SDCardRoot2 = context.getExternalCacheDir().toString();
                     String filepath = audioItems.get(current_item).getSurat_number() + "." + audioItems.get(current_item).getAyat_number() + ".mp3";
                     String audioFilePath = SDCardRoot2 + "/MarathiQuran/marathi/" + filepath;
                     File mp3_file = new File(audioFilePath);
@@ -1161,6 +1291,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                             }
                             mediaPlayer = new MediaPlayer();
                             mediaPlayer.setDataSource(audioFilePath);
+                            mediaPlayer.setLooping(false);
                             mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
 
                             activity.runOnUiThread(new Runnable() {
@@ -1210,14 +1341,29 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                             trigger = "0";
 
                                             playingPosition++;
-                                            if (playingPosition >= vachanList.size())
+                                            if (playingPosition >= vachanList.size()){
                                                 playingPosition = 0;
+                                                ayat_changes  = "non";
+                                                int leng  = suratList.size();
+                                                if(pref.getsurepos() +1 >= leng){
+                                                    surat_spinner.setSelection(0);
+                                                }else {
+                                                    surat_spinner.setSelection(pref.getsurepos()+1);
+                                                }
+
+                                                flag = true;
+                                            }
 
                                             startMediaPlayer(playingPosition);
+                                            if(flag == true){
+                                                ayat_changes  = "non";
+                                            }else {
+                                                ayat_changes  = "change";
+                                            }
                                             listView.scrollToPosition(playingPosition);
+                                            ayat_spinner.setSelection(playingPosition);
                                             updatePlayingView();
                                             notifyDataSetChanged();
-
 
                                         }
                                     });
@@ -1235,7 +1381,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
                             activity.runOnUiThread(new Runnable() {
                                 public void run() {
-                                    Utils.showProgress1("Please wait..." , context);
+                                    if (flag == false) {
+                                        Utils.showProgress1("Please wait...", context);
+                                    }
                                 }
                             });
 
@@ -1244,8 +1392,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                 @Override
                                 public void run() {
 
-                                    String SDCardRoot = Environment.getExternalStorageDirectory().toString();
-                                    downloadFile(ur2, audioItems.get(current_item).getSurat_number() + "." + audioItems.get(current_item).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/marathi");
+                                  //  String SDCardRoot = Environment.getExternalStorageDirectory().toString();
+                                    String SDCardRoot = context.getExternalCacheDir().toString();
+                                    downloadFile(ur2, audioItems.get(current_item).getSurat_number() + "." + audioItems.get(current_item).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/marathi" , SDCardRoot + "/MarathiQuran");
 
                                 }
                             });
@@ -1258,8 +1407,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                 }
 
                                 mediaPlayer = new MediaPlayer();
-                                mediaPlayer.reset();
                                 mediaPlayer.setDataSource(ur2);
+                                mediaPlayer.setLooping(false);
                                 mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
 
                                 activity.runOnUiThread(new Runnable() {
@@ -1282,6 +1431,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                                     updatePlayingView();
 
                                                 }
+
                                                 super.onCallStateChanged(state, incomingNumber);
                                             }
                                         };
@@ -1315,12 +1465,29 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
                                                 trigger = "0";
 
+
                                                 playingPosition++;
-                                                if (playingPosition >= vachanList.size())
+                                                if (playingPosition >= vachanList.size()){
                                                     playingPosition = 0;
+                                                    ayat_changes  = "non";
+                                                    int leng  = suratList.size();
+                                                    if(pref.getsurepos() +1 >= leng){
+                                                        surat_spinner.setSelection(0);
+                                                    }else {
+                                                        surat_spinner.setSelection(pref.getsurepos()+1);
+                                                    }
+
+                                                    flag = true;
+                                                }
 
                                                 startMediaPlayer(playingPosition);
+                                                if(flag == true){
+                                                    ayat_changes  = "non";
+                                                }else {
+                                                    ayat_changes  = "change";
+                                                }
                                                 listView.scrollToPosition(playingPosition);
+                                                ayat_spinner.setSelection(playingPosition);
                                                 updatePlayingView();
                                                 notifyDataSetChanged();
 
@@ -1404,11 +1571,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
                         }
                     });*/
+
                 }else{
 
                     File mp3_file;
                     String audioFilePath = "";
-                    String SDCardRoot2 = Environment.getExternalStorageDirectory().toString();
+                //  String SDCardRoot = Environment.getExternalStorageDirectory().toString();
+                    String SDCardRoot2 = context.getExternalCacheDir().toString();
                     String filepath = audioItems.get(current_item).getSurat_number() + "." + audioItems.get(current_item).getAyat_number() + ".mp3";
 
                     if (audioType.equals("marathi")) {
@@ -1422,14 +1591,23 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     if (mp3_file.exists()) {
 
                         try {
+
                             if (mediaPlayer != null) {
                                 mediaPlayer.release();
                                 mediaPlayer = null;
                             }
 
-                            mediaPlayer = new MediaPlayer();
-                            mediaPlayer.setDataSource(audioFilePath);
-                            mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                            try {
+
+                                mediaPlayer = new MediaPlayer();
+                                mediaPlayer.setDataSource(audioFilePath);
+                                mediaPlayer.setLooping(false);
+                                mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+
+                            }catch (Exception e){
+
+                            }
+
 
                             activity.runOnUiThread(new Runnable() {
                                 public void run() {
@@ -1479,12 +1657,31 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
                                             playingPosition++;
                                             if (playingPosition >= vachanList.size()){
+
+                                                audioItemAdapter.stopPlayer();
+
                                                 playingPosition = 0;
+                                                ayat_changes  = "non";
+                                                int leng  = suratList.size();
+
+                                                if(pref.getsurepos() +1 >= leng){
+                                                    surat_spinner.setSelection(0);
+                                                }else {
+                                                    surat_spinner.setSelection(pref.getsurepos()+1);
+                                                }
+
+                                                flag = true;
 
                                             }
 
                                             startMediaPlayer(playingPosition);
+                                            if(flag == true){
+                                                ayat_changes  = "non";
+                                            }else {
+                                                ayat_changes  = "change";
+                                            }
                                             listView.scrollToPosition(playingPosition);
+                                            ayat_spinner.setSelection(playingPosition);
                                             updatePlayingView();
                                             notifyDataSetChanged();
 
@@ -1530,29 +1727,30 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
                     } else {
 
-                           if (Utils.isNetworkAvailable(activity)) {
+                    if (Utils.isNetworkAvailable(activity)) {
 
                                activity.runOnUiThread(new Runnable() {
                                    public void run() {
-                                        Utils.showProgress1("Please wait..." , context);
+                                       if (flag == false) {
+                                           Utils.showProgress1("Please wait...", context);
+                                       }
                                    }
                                });
 
                                Thread t = new Thread(new Runnable() {
-
                                    @Override
                                    public void run() {
 
-                                       String SDCardRoot = Environment.getExternalStorageDirectory().toString();
+                                     //  String SDCardRoot = Environment.getExternalStorageDirectory().toString();
+                                       String SDCardRoot = context.getExternalCacheDir().toString();
                                        if (audioType.equals("marathi")) {
-                                           downloadFile(url, audioItems.get(current_item).getSurat_number() + "." + audioItems.get(current_item).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/marathi");
+                                           downloadFile(url, audioItems.get(current_item).getSurat_number() + "." + audioItems.get(current_item).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/marathi" ,  SDCardRoot + "/MarathiQuran/marathi");
                                        } else {
-
-                                           downloadFile(url, audioItems.get(current_item).getSurat_number() + "." + audioItems.get(current_item).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/arabic");
+                                           downloadFile(url, audioItems.get(current_item).getSurat_number() + "." + audioItems.get(current_item).getAyat_number() + ".mp3", SDCardRoot + "/MarathiQuran/arabic" , SDCardRoot + "/MarathiQuran/marathi");
                                        }
+
                                    }
-                               });
-                               t.start();
+                               }); t.start();
 
                             try {
 
@@ -1563,10 +1761,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
                                 mediaPlayer = new MediaPlayer();
                                 mediaPlayer.reset();
+                                mediaPlayer.setLooping(false);
                                 mediaPlayer.setDataSource(url);
                                 mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
 
-                                activity.runOnUiThread(new Runnable() {
+                                  activity.runOnUiThread(new Runnable() {
                                     public void run() {
                                         PhoneStateListener phoneStateListener = new PhoneStateListener() {
                                             @Override
@@ -1578,14 +1777,17 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                                     updatePlayingView();
 
                                                 } else if(state == TelephonyManager.CALL_STATE_IDLE) {
+
                                                     mediaPlayer.start();
                                                     updatePlayingView();
+
                                                 } else if(state == TelephonyManager.CALL_STATE_OFFHOOK) {
 
                                                     pausePlayer();
                                                     updatePlayingView();
 
                                                 }
+
                                                 super.onCallStateChanged(state, incomingNumber);
                                             }
                                         };
@@ -1597,35 +1799,55 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                     }
                                 });
 
+
                                 mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
                                     @Override
                                     public void onPrepared(MediaPlayer mediaPlayer) {
 
                                         mediaPlayer.start();
-
                                         activity.runOnUiThread(new Runnable() {
                                             public void run() {
                                                Utils.hideProgress1();
                                             }
                                         });
-
                                         updatePlayingView();
 
                                         mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                                             @Override
                                             public void onCompletion(MediaPlayer mediaPlayer) {
-                                                
+
                                                 mediaPlayer.stop();
                                                 mediaPlayer.release();
                                                 mediaPlayer = null;
 
                                                 playingPosition++;
+
                                                 if (playingPosition >= vachanList.size()){
+
                                                     playingPosition = 0;
+                                                    ayat_changes  = "non";
+                                                    int leng  = suratList.size();
+
+                                                    if(pref.getsurepos() +1 >= leng){
+                                                        surat_spinner.setSelection(0);
+                                                    }else {
+                                                        surat_spinner.setSelection(pref.getsurepos()+1);
+                                                    }
+
+                                                    flag = true;
+
                                                 }
 
                                                 startMediaPlayer(playingPosition);
+
+                                                if(flag == true){
+                                                    ayat_changes  = "non";
+                                                }else {
+                                                    ayat_changes  = "change";
+                                                }
+
                                                 listView.scrollToPosition(playingPosition);
+                                                ayat_spinner.setSelection(playingPosition);
                                                 updatePlayingView();
                                                 notifyDataSetChanged();
 
@@ -1633,7 +1855,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                         });
                                     }
                                 });
+
                                 mediaPlayer.prepareAsync();
+
                               //  mediaPlayer.prepare();
 
                             } catch (Exception e) {
@@ -1712,18 +1936,19 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     }*/
 
-       /*   @Override
+   /*   @Override
     protected void onPause() {
         super.onPause();
         audioItemAdapter.stopPlayer();
     }*/
 
-    void downloadFile(String dwnload_file_path, String fileName, String pathToSave) {
+    void downloadFile(String dwnload_file_path, String fileName, String pathToSave , String folder) {
         int downloadedSize = 0;
         int totalSize = 0;
 
         try {
             if (isStoragePermissionGranted()) {
+
                 if(ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
                     ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
                 }else {
@@ -1811,9 +2036,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
 }
-
-
-
 
 
 
