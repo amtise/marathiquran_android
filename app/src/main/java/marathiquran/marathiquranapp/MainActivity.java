@@ -419,7 +419,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         if(!((Activity) MainActivity.this).isFinishing()) {
 
                             Utils.showProgress1("please wait Downloading..." , MainActivity.this);
-                            Toast.makeText(MainActivity.this, "Downloading started in background", Toast.LENGTH_SHORT).show();
+                          //  Toast.makeText(MainActivity.this, "Downloading started in background", Toast.LENGTH_SHORT).show();
 
                         }
                     }
